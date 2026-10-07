@@ -1,0 +1,228 @@
+Here is the complete, standalone HTML file built specifically for the Sales (CRM) department team, strictly adhering to the database contract and page hooks (#title, #summary, #list, .card, .tag, .alert).
+
+Save this file as sales.html in your project repository:
+
+HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sales (CRM) - Food Truck</title>
+  <style>
+    /* Reset & Modern Base Layout */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+      padding: 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* Page Hook: #title */
+    #title {
+      font-size: 2rem;
+      font-weight: 800;
+      color: #0f172a;
+      margin-bottom: 1.5rem;
+      letter-spacing: -0.025em;
+    }
+
+    /* Page Hook: #summary */
+    #summary {
+      display: flex;
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+      background-color: #ffffff;
+      padding: 1.25rem 1.5rem;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .summary-card {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .summary-card .label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: #64748b;
+      letter-spacing: 0.05em;
+    }
+
+    .summary-card .value {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #0f172a;
+    }
+
+    /* Page Hook: #list */
+    #list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.25rem;
+    }
+
+    /* Page Hook: .card */
+    .card {
+      background-color: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 1.25rem;
+      position: relative;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .card h3 {
+      font-size: 1.125rem;
+      font-weight: 700;
+      color: #1e293b;
+      margin-top: 0.25rem;
+    }
+
+    .card p {
+      font-size: 0.875rem;
+      color: #475569;
+    }
+
+    /* Page Hook: .tag */
+    .tag {
+      align-self: flex-start;
+      background-color: #f1f5f9;
+      color: #334155;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.25rem 0.6rem;
+      border-radius: 9999px;
+      text-transform: uppercase;
+    }
+
+    /* Page Hook: .alert */
+    .card.alert {
+      border: 2px solid #ef4444;
+      background-color: #fff5f5;
+    }
+
+    .alert-badge {
+      margin-top: 0.5rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #dc2626;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .loading {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 3rem;
+      color: #64748b;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Page Hooks -->
+  <h1 id="title">Our Food Truck - Sales (CRM)</h1>
+  <div id="summary"></div>
+  <div id="list">
+    <div class="loading">Loading Customer CRM Data...</div>
+  </div>
+
+  <script>
+    const BASE_URL = 'https://profalexbutler.github.io/mgis130-company/data/';
+
+    // Calculate age of date string relative to current date (in days)
+    function getDaysSince(dateString) {
+      const pastDate = new Date(dateString);
+      const today = new Date();
+      // Zero out time components for clean calendar day comparisons
+      pastDate.setHours(0, 0, 0, 0);
+      today.setHours(0, 0, 0, 0);
+      
+      const diffTime = today - pastDate;
+      return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    }
+
+    async function loadSalesCRM() {
+      try {
+        // Fetch customers.json without cache per contract specification
+        const response = await fetch(`${BASE_URL}customers.json`, { cache: 'no-store' });
+        if (!response.ok) throw new Error('Failed to fetch customers dataset.');
+
+        const customers = await response.json();
+
+        let dueForCallCount = 0;
+        const listContainer = document.querySelector('#list');
+        listContainer.innerHTML = ''; // Clear loading indicator
+
+        customers.forEach(customer => {
+          const daysSinceLastContact = getDaysSince(customer.lastContact);
+          
+          // Alert Rule: lastContact is more than 30 days before today
+          const isDueForCall = daysSinceLastContact > 30;
+          if (isDueForCall) dueForCallCount++;
+
+          // Construct Card
+          const card = document.createElement('div');
+          card.className = `card ${isDueForCall ? 'alert' : ''}`;
+
+          card.innerHTML = `
+            <span class="tag">${customer.type}</span>
+            <h3>${customer.name}</h3>
+            <p><strong>Contact:</strong> ${customer.contact} (<a href="mailto:${customer.email}">${customer.email}</a>)</p>
+            <p><strong>Last Contact:</strong> ${customer.lastContact} (${daysSinceLastContact} days ago)</p>
+            
+            ${isDueForCall ? `
+              <div class="alert-badge">
+                ⚠️ Due for a call (>30 days since last contact)
+              </div>
+            ` : ''}
+          `;
+
+          listContainer.appendChild(card);
+        });
+
+        // Update #summary Hook
+        document.querySelector('#summary').innerHTML = `
+          <div class="summary-card">
+            <span class="label">Total Customers</span>
+            <span class="value">${customers.length}</span>
+          </div>
+          <div class="summary-card">
+            <span class="label">Due for a Call</span>
+            <span class="value" style="color: ${dueForCallCount > 0 ? '#dc2626' : '#0f172a'}">${dueForCallCount}</span>
+          </div>
+        `;
+
+      } catch (error) {
+        console.error('Sales CRM Loading Error:', error);
+        document.querySelector('#list').innerHTML = `
+          <div class="loading" style="color: #ef4444;">
+            Error loading customer data. Check network connection.
+          </div>
+        `;
+      }
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', loadSalesCRM);
+  </script>
+</body>
+</html>
