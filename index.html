@@ -1,1 +1,871 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-900 text-slate-100">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Our Food Truck - Analytics (BI)</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  
+  <!-- Chart.js for BI visualizations -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+
+    /* Standard Card Styling & Alert Animations */
+    .card {
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.5);
+    }
+    
+    /* Contract Hook Rules for Alert */
+    .card.alert {
+      border-left: 4px solid #f43f5e !important;
+      background: linear-gradient(135deg, rgba(244, 63, 94, 0.08) 0%, rgba(30, 41, 59, 0.95) 100%);
+    }
+
+    /* Tag Styling Hook */
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.625rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.025em;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col font-sans bg-slate-900 text-slate-100 antialiased selection:bg-indigo-500 selection:text-white">
+
+  <!-- Top Navigation Header -->
+  <header class="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        
+        <!-- #title hook required by company contract -->
+        <div class="flex items-center space-x-3">
+          <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+            <i class="fa-solid me-0 fa-chart-line text-white text-lg"></i>
+          </div>
+          <div>
+            <h1 id="title" class="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
+              <span>Our Food Truck</span>
+              <span class="text-slate-500 text-sm font-normal">—</span>
+              <span class="text-indigo-400 font-semibold">Analytics (BI)</span>
+            </h1>
+            <p class="text-xs text-slate-400">Weekly Sales Performance &amp; Revenue Intelligence</p>
+          </div>
+        </div>
+
+        <!-- Right Side Actions & Source Status -->
+        <div class="flex items-center space-x-3">
+          <div id="data-status-badge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-slate-800 border border-slate-700 text-slate-300">
+            <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse" id="status-dot"></span>
+            <span id="status-text">Fetching data...</span>
+          </div>
+
+          <button id="refresh-btn" onclick="loadData()" title="Reload Data from Repo" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition">
+            <i class="fa-solid fa-rotate text-sm" id="refresh-icon"></i>
+          </button>
+
+          <button onclick="exportDataCSV()" title="Export Analytics to CSV" class="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-600/30 transition text-xs font-medium">
+            <i class="fa-solid fa-download"></i> Export CSV
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- Contract Requirement: #summary Hook -->
+    <section>
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+          <i class="fa-solid fa-gauge-high text-indigo-400"></i> Performance Summary
+        </h2>
+        <span class="text-xs text-slate-500" id="week-date-display">Week of: --</span>
+      </div>
+
+      <!-- #summary DOM Hook -->
+      <div id="summary" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Summary Cards will be injected dynamically -->
+        <div class="animate-pulse bg-slate-800/60 border border-slate-800 rounded-2xl p-5 h-28"></div>
+        <div class="animate-pulse bg-slate-800/60 border border-slate-800 rounded-2xl p-5 h-28"></div>
+        <div class="animate-pulse bg-slate-800/60 border border-slate-800 rounded-2xl p-5 h-28"></div>
+        <div class="animate-pulse bg-slate-800/60 border border-slate-800 rounded-2xl p-5 h-28"></div>
+      </div>
+    </section>
+
+    <!-- Analytics Chart & Trends Section -->
+    <section class="bg-slate-800/50 border border-slate-800 rounded-2xl p-5 backdrop-blur-sm">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+        <div>
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-chart-bar text-indigo-400"></i> Category Sales Comparison
+          </h3>
+          <p class="text-xs text-slate-400">Comparing total units sold this week vs last week by category</p>
+        </div>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+            <span class="w-2.5 h-2.5 rounded-sm bg-indigo-500"></span> This Week
+          </span>
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-700/50 text-slate-400 border border-slate-700">
+            <span class="w-2.5 h-2.5 rounded-sm bg-slate-500"></span> Last Week
+          </span>
+        </div>
+      </div>
+      <div class="relative h-64 w-full">
+        <canvas id="categoryChart"></canvas>
+      </div>
+    </section>
+
+    <!-- Filter and Controls Toolbar -->
+    <section class="bg-slate-800/80 border border-slate-800 rounded-2xl p-4 space-y-3">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        
+        <!-- Search Input -->
+        <div class="relative flex-1">
+          <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+          <input 
+            type="text" 
+            id="search-input" 
+            placeholder="Search menu items..." 
+            oninput="handleFilterChange()"
+            class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+          />
+        </div>
+
+        <!-- Filter Categories Pill Buttons -->
+        <div class="flex flex-wrap items-center gap-1.5" id="category-pills">
+          <!-- Dynamically populated category buttons -->
+        </div>
+
+        <!-- Alert Filter & Sort Selector -->
+        <div class="flex items-center gap-3">
+          <!-- Toggle Alerts Only -->
+          <button 
+            id="alerts-toggle-btn" 
+            onclick="toggleAlertsOnly()" 
+            class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 text-xs font-semibold transition"
+          >
+            <i class="fa-solid fa-triangle-exclamation text-rose-400"></i>
+            <span>Alerts Only</span>
+            <span id="alert-count-badge" class="ml-1 px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-bold">0</span>
+          </button>
+
+          <!-- Sorting Dropdown -->
+          <select 
+            id="sort-select" 
+            onchange="handleFilterChange()"
+            class="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="units-desc">Sort: Units (High → Low)</option>
+            <option value="units-asc">Sort: Units (Low → High)</option>
+            <option value="drop-desc">Sort: Biggest Drop First</option>
+            <option value="growth-desc">Sort: Highest Growth First</option>
+            <option value="price-desc">Sort: Price (High → Low)</option>
+            <option value="name-asc">Sort: Name (A → Z)</option>
+          </select>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Contract Requirement: #list Hook Section -->
+    <section>
+      <div class="flex items-center justify-between mb-3 px-1">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+          <i class="fa-solid fa-utensils text-indigo-400"></i> Menu Items Performance Cards
+        </h2>
+        <span class="text-xs text-slate-400" id="card-count-label">Showing 0 items</span>
+      </div>
+
+      <!-- #list DOM Hook -->
+      <div id="list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Cards injected dynamically -->
+      </div>
+
+      <!-- Empty State -->
+      <div id="empty-state" class="hidden text-center py-12 bg-slate-800/40 border border-dashed border-slate-700 rounded-2xl">
+        <i class="fa-solid fa-filter-circle-xmark text-4xl text-slate-600 mb-3"></i>
+        <p class="text-slate-300 font-medium">No sales records match your active filters.</p>
+        <button onclick="resetFilters()" class="mt-3 px-4 py-1.5 rounded-lg bg-slate-700 text-xs text-white hover:bg-slate-600 transition">
+          Reset Filters
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="mt-auto border-t border-slate-800 bg-slate-950/60 py-6 text-xs text-slate-500 text-center">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <p>Our Food Truck Analytics Platform &bull; MGIS130 Company Repository Integration</p>
+      <p class="text-slate-600">Contract Standard v1.0 &bull; Auto-sync: disabled</p>
+    </div>
+  </footer>
+
+  <script>
+    /**
+     * MGIS130 Food Truck Analytics Application
+     * Standard Data Contract Compliance & Interactive Dashboard Logic
+     */
+
+    const BASE_URL = 'https://profalexbutler.github.io/mgis130-company/data/';
+    
+    // Application State
+    let salesData = [];
+    let menuData = [];
+    let combinedData = [];
+    let activeCategory = 'All';
+    let showAlertsOnly = false;
+    let chartInstance = null;
+
+    // Fallback Mock Data matching company schema
+    const FALLBACK_MENU = [
+      { id: 'M01', name: 'Chicken tinga taco', category: 'Taco', price: 4.5, available: true },
+      { id: 'M02', name: 'Carnitas taco', category: 'Taco', price: 4.5, available: true },
+      { id: 'M03', name: 'Birria taco with consommé', category: 'Taco', price: 5.5, available: true },
+      { id: 'M04', name: 'Burrito bowl (Steak)', category: 'Bowl', price: 11.5, available: true },
+      { id: 'M05', name: 'Veggie bowl', category: 'Bowl', price: 9.5, available: true },
+      { id: 'M06', name: 'Chips & Fresh Guacamole', category: 'Side', price: 4.0, available: true },
+      { id: 'M07', name: 'Elote (Street Corn)', category: 'Side', price: 4.5, available: true },
+      { id: 'M08', name: 'Churros with Chocolate', category: 'Dessert', price: 5.0, available: true },
+      { id: 'M09', name: 'Horchata', category: 'Drink', price: 3.5, available: true },
+      { id: 'M10', name: 'Jarritos Soda', category: 'Drink', price: 3.0, available: true }
+    ];
+
+    const FALLBACK_SALES = [
+      { id: 'W01', menuItemId: 'M01', weekOf: '2026-09-28', unitsThisWeek: 212, unitsLastWeek: 198 },
+      { id: 'W02', menuItemId: 'M02', weekOf: '2026-09-28', unitsThisWeek: 185, unitsLastWeek: 190 }, // Alert (< last week)
+      { id: 'W03', menuItemId: 'M03', weekOf: '2026-09-28', unitsThisWeek: 310, unitsLastWeek: 280 }, // Best seller
+      { id: 'W04', menuItemId: 'M04', weekOf: '2026-09-28', unitsThisWeek: 142, unitsLastWeek: 160 }, // Alert (< last week)
+      { id: 'W05', menuItemId: 'M05', weekOf: '2026-09-28', unitsThisWeek: 98, unitsLastWeek: 85 },
+      { id: 'W06', menuItemId: 'M06', weekOf: '2026-09-28', unitsThisWeek: 220, unitsLastWeek: 210 },
+      { id: 'W07', menuItemId: 'M07', weekOf: '2026-09-28', unitsThisWeek: 175, unitsLastWeek: 195 }, // Alert (< last week)
+      { id: 'W08', menuItemId: 'M08', weekOf: '2026-09-28', unitsThisWeek: 110, unitsLastWeek: 110 },
+      { id: 'W09', menuItemId: 'M09', weekOf: '2026-09-28', unitsThisWeek: 245, unitsLastWeek: 230 },
+      { id: 'W10', menuItemId: 'M10', weekOf: '2026-09-28', unitsThisWeek: 160, unitsLastWeek: 175 }  // Alert (< last week)
+    ];
+
+    // Category Color Theme Mapping
+    const CATEGORY_COLORS = {
+      'Taco': { bg: 'bg-amber-500/10 text-amber-300 border-amber-500/30', badgeBg: 'bg-amber-500' },
+      'Bowl': { bg: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30', badgeBg: 'bg-emerald-500' },
+      'Side': { bg: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/30', badgeBg: 'bg-indigo-500' },
+      'Dessert': { bg: 'bg-pink-500/10 text-pink-300 border-pink-500/30', badgeBg: 'bg-pink-500' },
+      'Drink': { bg: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30', badgeBg: 'bg-cyan-500' },
+      'Default': { bg: 'bg-slate-700/50 text-slate-300 border-slate-600', badgeBg: 'bg-slate-500' }
+    };
+
+    /**
+     * Load data with required fetch options { cache: "no-store" }
+     */
+    async function loadData() {
+      const statusDot = document.getElementById('status-dot');
+      const statusText = document.getElementById('status-text');
+      const refreshIcon = document.getElementById('refresh-icon');
+
+      refreshIcon.classList.add('fa-spin');
+      statusText.textContent = 'Fetching remote data...';
+      statusDot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
+
+      let isLive = false;
+
+      try {
+        // Contract mandated fetch with { cache: "no-store" }
+        const [salesRes, menuRes] = await Promise.all([
+          fetch(`${BASE_URL}sales.json`, { cache: "no-store" }),
+          fetch(`${BASE_URL}menu.json`, { cache: "no-store" })
+        ]);
+
+        if (!salesRes.ok || !menuRes.ok) {
+          throw new Error('HTTP network error fetching repository data');
+        }
+
+        salesData = await salesRes.json();
+        menuData = await menuRes.json();
+        isLive = true;
+
+      } catch (err) {
+        console.warn('Repository fetch failed or blocked (using standard fallback contract data):', err);
+        salesData = FALLBACK_SALES;
+        menuData = FALLBACK_MENU;
+        isLive = false;
+      } finally {
+        refreshIcon.classList.remove('fa-spin');
+      }
+
+      // Update badge status
+      if (isLive) {
+        statusDot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+        statusText.textContent = 'Live Repo Data';
+      } else {
+        statusDot.className = 'w-2 h-2 rounded-full bg-blue-400';
+        statusText.textContent = 'Fallback Data';
+      }
+
+      processAndRender();
+    }
+
+    /**
+     * Joins sales.json with menu.json via menuItemId -> menu.id
+     */
+    function processAndRender() {
+      // Create quick lookup map for menu items
+      const menuMap = new Map(menuData.map(item => [item.id, item]));
+
+      combinedData = salesData.map(sale => {
+        const menuItem = menuMap.get(sale.menuItemId) || {
+          name: 'Unknown Item',
+          category: 'Unassigned',
+          price: 0,
+          available: false
+        };
+
+        const diff = sale.unitsThisWeek - sale.unitsLastWeek;
+        const pctChange = sale.unitsLastWeek > 0 
+          ? ((diff / sale.unitsLastWeek) * 100).toFixed(1) 
+          : '0.0';
+        
+        const isAlert = sale.unitsThisWeek < sale.unitsLastWeek;
+        const revenueThisWeek = sale.unitsThisWeek * menuItem.price;
+        const revenueLastWeek = sale.unitsLastWeek * menuItem.price;
+
+        return {
+          ...sale,
+          menuItem,
+          diff,
+          pctChange,
+          isAlert,
+          revenueThisWeek,
+          revenueLastWeek
+        };
+      });
+
+      renderSummary();
+      renderCategoryPills();
+      renderList();
+      renderChart();
+    }
+
+    /**
+     * Contract requirement: #summary hook
+     * Displays: Units sold this week & This week's best seller + revenue metrics
+     */
+    function renderSummary() {
+      const summaryContainer = document.getElementById('summary');
+      
+      if (!combinedData.length) {
+        summaryContainer.innerHTML = '<p class="text-slate-400">No data available.</p>';
+        return;
+      }
+
+      // Calculate aggregated metrics
+      const totalUnitsThisWeek = combinedData.reduce((acc, curr) => acc + curr.unitsThisWeek, 0);
+      const totalUnitsLastWeek = combinedData.reduce((acc, curr) => acc + curr.unitsLastWeek, 0);
+      const totalRevenueThisWeek = combinedData.reduce((acc, curr) => acc + curr.revenueThisWeek, 0);
+      const totalRevenueLastWeek = combinedData.reduce((acc, curr) => acc + curr.revenueLastWeek, 0);
+      
+      const unitsDiff = totalUnitsThisWeek - totalUnitsLastWeek;
+      const revenueDiff = totalRevenueThisWeek - totalRevenueLastWeek;
+
+      // Find Best Seller (Highest unitsThisWeek)
+      const bestSeller = [...combinedData].sort((a, b) => b.unitsThisWeek - a.unitsThisWeek)[0];
+
+      // Count Declining Items (Alerts)
+      const alertCount = combinedData.filter(d => d.isAlert).length;
+      document.getElementById('alert-count-badge').textContent = alertCount;
+
+      // Week date display
+      const latestWeekOf = combinedData[0]?.weekOf || 'N/A';
+      document.getElementById('week-date-display').textContent = `Week of ${latestWeekOf}`;
+
+      // Populate #summary hook container
+      summaryContainer.innerHTML = `
+        <!-- Stat 1: Total Units Sold This Week -->
+        <div class="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden group">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Units Sold This Week</span>
+            <div class="p-2 rounded-xl bg-indigo-500/10 text-indigo-400">
+              <i class="fa-solid fa-box text-sm"></i>
+            </div>
+          </div>
+          <div class="mt-2 flex items-baseline justify-between">
+            <span class="text-2xl font-extrabold text-white tracking-tight">${totalUnitsThisWeek.toLocaleString()}</span>
+            <span class="text-xs font-bold ${unitsDiff >= 0 ? 'text-emerald-400' : 'text-rose-400'} flex items-center gap-1">
+              <i class="fa-solid ${unitsDiff >= 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'}"></i>
+              ${unitsDiff >= 0 ? '+' : ''}${unitsDiff} vs LW
+            </span>
+          </div>
+          <div class="w-full bg-slate-700/40 h-1 rounded-full mt-3 overflow-hidden">
+            <div class="bg-indigo-500 h-full rounded-full" style="width: ${Math.min(100, (totalUnitsThisWeek / (totalUnitsLastWeek || 1)) * 100)}%"></div>
+          </div>
+        </div>
+
+        <!-- Stat 2: Best Seller -->
+        <div class="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Best Seller</span>
+            <div class="p-2 rounded-xl bg-amber-500/10 text-amber-400">
+              <i class="fa-solid fa-crown text-sm"></i>
+            </div>
+          </div>
+          <div class="mt-2">
+            <div class="text-lg font-extrabold text-white truncate" title="${bestSeller?.menuItem.name || 'N/A'}">
+              ${bestSeller?.menuItem.name || 'N/A'}
+            </div>
+            <div class="flex items-center justify-between text-xs text-slate-400 mt-1">
+              <span>${bestSeller?.unitsThisWeek || 0} units</span>
+              <span class="font-semibold text-amber-400">$${(bestSeller?.revenueThisWeek || 0).toFixed(2)}</span>
+            </div>
+          </div>
+          <div class="w-full bg-slate-700/40 h-1 rounded-full mt-3 overflow-hidden">
+            <div class="bg-amber-400 h-full rounded-full" style="width: 100%"></div>
+          </div>
+        </div>
+
+        <!-- Stat 3: Weekly Gross Revenue -->
+        <div class="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Estimated Gross Revenue</span>
+            <div class="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
+              <i class="fa-solid fa-dollar-sign text-sm"></i>
+            </div>
+          </div>
+          <div class="mt-2 flex items-baseline justify-between">
+            <span class="text-2xl font-extrabold text-white tracking-tight">$${totalRevenueThisWeek.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span class="text-xs font-bold ${revenueDiff >= 0 ? 'text-emerald-400' : 'text-rose-400'} flex items-center gap-1">
+              <i class="fa-solid ${revenueDiff >= 0 ? 'fa-arrow-up' : 'fa-arrow-down'}"></i>
+              ${revenueDiff >= 0 ? '+' : ''}$${Math.abs(revenueDiff).toFixed(0)}
+            </span>
+          </div>
+          <div class="w-full bg-slate-700/40 h-1 rounded-full mt-3 overflow-hidden">
+            <div class="bg-emerald-500 h-full rounded-full" style="width: ${Math.min(100, (totalRevenueThisWeek / (totalRevenueLastWeek || 1)) * 100)}%"></div>
+          </div>
+        </div>
+
+        <!-- Stat 4: Items Requiring Attention (Alerts) -->
+        <div class="bg-slate-800/80 border ${alertCount > 0 ? 'border-rose-500/40' : 'border-slate-700/60'} rounded-2xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Declining Sales Items</span>
+            <div class="p-2 rounded-xl ${alertCount > 0 ? 'bg-rose-500/10 text-rose-400 animate-bounce' : 'bg-slate-700/20 text-slate-400'}">
+              <i class="fa-solid fa-triangle-exclamation text-sm"></i>
+            </div>
+          </div>
+          <div class="mt-2 flex items-baseline justify-between">
+            <span class="text-2xl font-extrabold ${alertCount > 0 ? 'text-rose-400' : 'text-white'} tracking-tight">${alertCount} Items</span>
+            <span class="text-xs text-slate-400 font-medium">units &lt; last week</span>
+          </div>
+          <div class="w-full bg-slate-700/40 h-1 rounded-full mt-3 overflow-hidden">
+            <div class="bg-rose-500 h-full rounded-full" style="width: ${(alertCount / (combinedData.length || 1)) * 100}%"></div>
+          </div>
+        </div>
+      `;
+    }
+
+    /**
+     * Filters and sorts the combined data based on controls
+     */
+    function getFilteredData() {
+      const searchVal = document.getElementById('search-input').value.toLowerCase().trim();
+      const sortOption = document.getElementById('sort-select').value;
+
+      let filtered = combinedData.filter(item => {
+        // Search filter
+        const matchesSearch = item.menuItem.name.toLowerCase().includes(searchVal) ||
+                              item.menuItem.category.toLowerCase().includes(searchVal);
+        
+        // Category pill filter
+        const matchesCategory = activeCategory === 'All' || item.menuItem.category === activeCategory;
+
+        // Alert filter toggle
+        const matchesAlert = !showAlertsOnly || item.isAlert;
+
+        return matchesSearch && matchesCategory && matchesAlert;
+      });
+
+      // Sorting
+      filtered.sort((a, b) => {
+        switch (sortOption) {
+          case 'units-desc':
+            return b.unitsThisWeek - a.unitsThisWeek;
+          case 'units-asc':
+            return a.unitsThisWeek - b.unitsThisWeek;
+          case 'drop-desc':
+            return a.diff - b.diff; // Most negative diff first
+          case 'growth-desc':
+            return b.diff - a.diff; // Most positive diff first
+          case 'price-desc':
+            return b.menuItem.price - a.menuItem.price;
+          case 'name-asc':
+            return a.menuItem.name.localeCompare(b.menuItem.name);
+          default:
+            return b.unitsThisWeek - a.unitsThisWeek;
+        }
+      });
+
+      return filtered;
+    }
+
+    function renderCategoryPills() {
+      const pillsContainer = document.getElementById('category-pills');
+      const categories = ['All', ...new Set(combinedData.map(d => d.menuItem.category))];
+
+      pillsContainer.innerHTML = categories.map(cat => {
+        const isActive = activeCategory === cat;
+        return `
+          <button 
+            onclick="setCategory('${cat}')" 
+            class="px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 ${
+              isActive 
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' 
+                : 'bg-slate-900 border border-slate-700 text-slate-300 hover:bg-slate-800'
+            }"
+          >
+            <span>${cat}</span>
+            ${cat === 'All' 
+              ? `<span class="opacity-70">(${combinedData.length})</span>` 
+              : `<span class="opacity-70">(${combinedData.filter(d => d.menuItem.category === cat).length})</span>`}
+          </button>
+        `;
+      }).join('');
+    }
+
+    function setCategory(cat) {
+      activeCategory = cat;
+      renderCategoryPills();
+      renderList();
+    }
+
+    function toggleAlertsOnly() {
+      showAlertsOnly = !showAlertsOnly;
+      const btn = document.getElementById('alerts-toggle-btn');
+      if (showAlertsOnly) {
+        btn.classList.remove('bg-rose-500/10', 'text-rose-300');
+        btn.classList.add('bg-rose-500', 'text-white', 'shadow-lg', 'shadow-rose-500/30');
+      } else {
+        btn.classList.remove('bg-rose-500', 'text-white', 'shadow-lg', 'shadow-rose-500/30');
+        btn.classList.add('bg-rose-500/10', 'text-rose-300');
+      }
+      renderList();
+    }
+
+    function handleFilterChange() {
+      renderList();
+    }
+
+    function resetFilters() {
+      activeCategory = 'All';
+      showAlertsOnly = false;
+      document.getElementById('search-input').value = '';
+      document.getElementById('sort-select').value = 'units-desc';
+      
+      const btn = document.getElementById('alerts-toggle-btn');
+      btn.classList.remove('bg-rose-500', 'text-white');
+      btn.classList.add('bg-rose-500/10', 'text-rose-300');
+
+      renderCategoryPills();
+      renderList();
+    }
+
+    /**
+     * Contract requirement: #list hook container rendering .card, .tag, and .alert
+     */
+    function renderList() {
+      const listContainer = document.getElementById('list');
+      const emptyState = document.getElementById('empty-state');
+      const countLabel = document.getElementById('card-count-label');
+
+      const itemsToDisplay = getFilteredData();
+      countLabel.textContent = `Showing ${itemsToDisplay.length} of ${combinedData.length} items`;
+
+      if (itemsToDisplay.length === 0) {
+        listContainer.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        return;
+      }
+
+      emptyState.classList.add('hidden');
+
+      listContainer.innerHTML = itemsToDisplay.map(item => {
+        const catStyle = CATEGORY_COLORS[item.menuItem.category] || CATEGORY_COLORS['Default'];
+        
+        // Contract requirement: .alert applied when unitsThisWeek < unitsLastWeek
+        const alertClass = item.isAlert ? 'alert' : '';
+        
+        return `
+          <div class="card ${alertClass} bg-slate-800/80 border border-slate-700/60 rounded-2xl p-5 flex flex-col justify-between relative overflow-hidden shadow-sm">
+            
+            <!-- Top Card Bar -->
+            <div>
+              <div class="flex items-start justify-between gap-2 mb-2">
+                <!-- Tag Hook requirement -->
+                <span class="tag border ${catStyle.bg}">
+                  <span class="w-1.5 h-1.5 rounded-full ${catStyle.badgeBg} mr-1.5"></span>
+                  ${item.menuItem.category}
+                </span>
+
+                <!-- Price & Status Badge -->
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-bold text-white bg-slate-900/80 border border-slate-700 px-2.5 py-0.5 rounded-lg">
+                    $${item.menuItem.price.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Item Name -->
+              <h3 class="text-lg font-bold text-white tracking-tight leading-snug mb-1">
+                ${item.menuItem.name}
+              </h3>
+
+              <!-- ID and Week Reference -->
+              <div class="text-[11px] text-slate-400 flex items-center gap-3 mb-4">
+                <span>ID: <code class="text-slate-300 font-mono">${item.menuItemId}</code></span>
+                <span>&bull;</span>
+                <span>Week: ${item.weekOf}</span>
+              </div>
+            </div>
+
+            <!-- Metric Box Grid -->
+            <div class="bg-slate-900/60 rounded-xl p-3 border border-slate-800/80 grid grid-cols-2 gap-3 mb-3">
+              <!-- Units This Week -->
+              <div>
+                <span class="text-[10px] uppercase font-semibold text-slate-400 block mb-0.5">This Week</span>
+                <div class="text-xl font-extrabold text-white flex items-baseline gap-1">
+                  ${item.unitsThisWeek}
+                  <span class="text-[10px] font-normal text-slate-400">units</span>
+                </div>
+              </div>
+
+              <!-- Units Last Week -->
+              <div>
+                <span class="text-[10px] uppercase font-semibold text-slate-400 block mb-0.5">Last Week</span>
+                <div class="text-xl font-extrabold text-slate-300 flex items-baseline gap-1">
+                  ${item.unitsLastWeek}
+                  <span class="text-[10px] font-normal text-slate-400">units</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bottom Performance & Alert Indicator Bar -->
+            <div class="pt-2 border-t border-slate-700/40 flex items-center justify-between text-xs">
+              <div class="flex items-center gap-1.5">
+                ${item.isAlert ? `
+                  <span class="inline-flex items-center gap-1 text-rose-400 font-bold bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20">
+                    <i class="fa-solid fa-circle-exclamation text-[11px]"></i> Sales Down (${item.diff})
+                  </span>
+                ` : `
+                  <span class="inline-flex items-center gap-1 ${item.diff > 0 ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-slate-400 bg-slate-800 border-slate-700'} font-semibold px-2 py-0.5 rounded-md border">
+                    <i class="fa-solid ${item.diff > 0 ? 'fa-arrow-up' : 'fa-minus'} text-[10px]"></i>
+                    ${item.diff > 0 ? `+${item.diff} units` : 'No change'}
+                  </span>
+                `}
+              </div>
+
+              <!-- Estimated Revenue -->
+              <span class="font-bold text-slate-200">
+                $${item.revenueThisWeek.toFixed(2)} <span class="text-[10px] text-slate-400 font-normal">rev</span>
+              </span>
+            </div>
+
+          </div>
+        `;
+      }).join('');
+    }
+
+    /**
+     * Renders a category breakdown bar chart
+     */
+    function renderChart() {
+      const ctx = document.getElementById('categoryChart').getContext('2d');
+
+      // Group totals by category
+      const categories = [...new Set(combinedData.map(d => d.menuItem.category))];
+      
+      const thisWeekTotals = categories.map(cat => {
+        return combinedData
+          .filter(d => d.menuItem.category === cat)
+          .reduce((sum, d) => sum + d.unitsThisWeek, 0);
+      });
+
+      const lastWeekTotals = categories.map(cat => {
+        return combinedData
+          .filter(d => d.menuItem.category === cat)
+          .reduce((sum, d) => sum + d.unitsLastWeek, 0);
+      });
+
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+
+      chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: categories,
+          datasets: [
+            {
+              label: 'This Week',
+              data: thisWeekTotals,
+              backgroundColor: '#6366f1',
+              borderRadius: 6,
+              borderSkipped: false,
+            },
+            {
+              label: 'Last Week',
+              data: lastWeekTotals,
+              backgroundColor: '#475569',
+              borderRadius: 6,
+              borderSkipped: false,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false // Using custom legend in UI header
+            },
+            tooltip: {
+              backgroundColor: '#0f172a',
+              titleColor: '#f8fafc',
+              bodyColor: '#cbd5e1',
+              borderColor: '#334155',
+              borderWidth: 1,
+              padding: 10,
+              displayColors: true,
+              callbacks: {
+                label: function(context) {
+                  return `${context.dataset.label}: ${context.raw} units`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: {
+                display: false,
+                drawBorder: false
+              },
+              ticks: {
+                color: '#94a3b8',
+                font: {
+                  family: 'Inter',
+                  size: 11
+                }
+              }
+            },
+            y: {
+              grid: {
+                color: '#1e293b',
+                drawBorder: false
+              },
+              ticks: {
+                color: '#94a3b8',
+                font: {
+                  family: 'Inter',
+                  size: 11
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    /**
+     * Exports processed joined dataset as CSV
+     */
+    function exportDataCSV() {
+      if (!combinedData.length) return;
+
+      const headers = ['Sales_ID', 'Menu_ID', 'Item_Name', 'Category', 'Price', 'Week_Of', 'Units_This_Week', 'Units_Last_Week', 'Diff', 'Alert_Status', 'Revenue_This_Week'];
+      
+      const rows = combinedData.map(d => [
+        d.id,
+        d.menuItemId,
+        `"${d.menuItem.name}"`,
+        d.menuItem.category,
+        d.menuItem.price,
+        d.weekOf,
+        d.unitsThisWeek,
+        d.unitsLastWeek,
+        d.diff,
+        d.isAlert ? 'ALERT_DECLINING' : 'OK',
+        d.revenueThisWeek.toFixed(2)
+      ]);
+
+      const csvContent = "data:text/csv;charset=utf-8," 
+        + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `analytics_food_truck_${combinedData[0]?.weekOf || 'export'}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // Initial load on DOM ready
+    window.addEventListener('DOMContentLoaded', () => {
+      loadData();
+    });
+  </script>
+</body>
+</html>
